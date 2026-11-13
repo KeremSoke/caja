@@ -408,6 +408,17 @@ eel_background_draw (GtkWidget *widget,
         return;
     }
 
+    if (self->details->is_desktop &&
+        !GDK_IS_X11_DISPLAY (gdk_display_get_default ()) &&
+        !mate_bg_get_draw_background (self->details->bg))
+    {
+        cairo_save (cr);
+        cairo_set_operator (cr, CAIRO_OPERATOR_CLEAR);
+        cairo_paint (cr);
+        cairo_restore (cr);
+        return;
+    }
+
     drawable_get_adjusted_size (self, &width, &height);
 
     eel_background_ensure_realized (self);
@@ -469,6 +480,11 @@ init_fade (EelBackground *self)
 
     if (!do_fade) {
     	return;
+    }
+
+    if (!GDK_IS_X11_DISPLAY (gdk_display_get_default ()) &&
+        !mate_bg_get_draw_background (self->details->bg)) {
+        return;
     }
 
     if (self->details->fade == NULL)
@@ -558,6 +574,13 @@ eel_background_set_up_widget (EelBackground *self)
         return;
 
     gtk_widget_queue_draw (widget);
+
+    if (self->details->fade != NULL && self->details->is_desktop &&
+        !GDK_IS_X11_DISPLAY (gdk_display_get_default ()) &&
+        !mate_bg_get_draw_background (self->details->bg))
+    {
+        free_fade (self);
+    }
 
     if (self->details->fade != NULL)
         in_fade = fade_to_surface (self, widget, self->details->bg_surface);
