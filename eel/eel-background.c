@@ -38,6 +38,10 @@
 #include "eel-glib-extensions.h"
 #include "eel-lib-self-check-functions.h"
 #include "eel-canvas.h"
+#ifdef HAVE_MATE_MONITOR_INFO
+#define MATE_DESKTOP_USE_UNSTABLE_API
+#include <libmate-desktop/mate-monitor-info.h>
+#endif
 
 enum
 {
@@ -453,6 +457,31 @@ eel_background_ensure_realized (EelBackground *self)
     return TRUE;
 }
 
+static gboolean
+eel_background_icons_only (EelBackground *self)
+{
+    static gboolean reported = FALSE;
+    GdkDisplay *display = gdk_display_get_default ();
+
+    if (!self->details->is_desktop || GDK_IS_X11_DISPLAY (display) ||
+        mate_bg_get_draw_background (self->details->bg))
+        return FALSE;
+
+#ifdef HAVE_MATE_MONITOR_INFO
+    if (mate_monitor_info_has_capability (mate_monitor_info_get_for_display (display),
+                                          MATE_MONITOR_CAPABILITY_WALLPAPER))
+        return TRUE;
+#endif
+
+    if (!reported)
+    {
+        g_message ("draw-background is off, but the compositor draws no wallpaper, so the desktop draws it");
+        reported = TRUE;
+    }
+    return FALSE;
+}
+
+
 void
 eel_background_draw (GtkWidget *widget,
                      cairo_t   *cr)
@@ -467,9 +496,7 @@ eel_background_draw (GtkWidget *widget,
         return;
     }
 
-    if (self->details->is_desktop &&
-        !GDK_IS_X11_DISPLAY (gdk_display_get_default ()) &&
-        !mate_bg_get_draw_background (self->details->bg))
+    if (eel_background_icons_only (self))
     {
         cairo_save (cr);
         cairo_set_operator (cr, CAIRO_OPERATOR_CLEAR);
@@ -547,8 +574,7 @@ init_fade (EelBackground *self)
     	return;
     }
 
-    if (!GDK_IS_X11_DISPLAY (gdk_display_get_default ()) &&
-        !mate_bg_get_draw_background (self->details->bg)) {
+    if (eel_background_icons_only (self)) {
         return;
     }
 
@@ -640,9 +666,7 @@ eel_background_set_up_widget (EelBackground *self)
 
     gtk_widget_queue_draw (widget);
 
-    if (self->details->fade != NULL && self->details->is_desktop &&
-        !GDK_IS_X11_DISPLAY (gdk_display_get_default ()) &&
-        !mate_bg_get_draw_background (self->details->bg))
+    if (self->details->fade != NULL && eel_background_icons_only (self))
     {
         free_fade (self);
     }
